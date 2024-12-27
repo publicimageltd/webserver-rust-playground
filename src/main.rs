@@ -7,6 +7,14 @@ use std::{
 // TODO Continue tutorial
 // https://doc.rust-lang.org/book/ch20-01-single-threaded.html
 
+fn get_request(mut stream: TcpStream) -> Vec<String> {
+    let reader = BufReader::new(&stream);    
+    return reader.lines()
+        .map(|result| result.unwrap())
+        .take_while(|line| !line.is_empty())
+        .collect();
+}
+
 fn main() -> Result<(), Box<dyn Error>> {    
 
     // Address to listen to
@@ -20,20 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match stream {
             Ok(stream) => {
                 println!("Connection established! {stream:?}");
-                let buf_reader = BufReader::new(&stream);
-                let mut target_string = String::new();
-                // Old-school for loop.
-                // TODO Change into a more functional style
-                // TODO Is there a "while let...."?
-                for line in buf_reader.lines() {
-                    let line = line.unwrap();
-                    if line.is_empty() {
-                        break;
-                    }
-                    target_string.push_str(&line);
-                    target_string.push_str("\n");
-                }
-                println!("{target_string}");
+                println!("{:#?}", get_request(stream));
             },
             Err(e) => {
                 println!("Something went wrong: {e:?}");
