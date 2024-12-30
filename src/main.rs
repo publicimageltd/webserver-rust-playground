@@ -73,24 +73,18 @@ fn get_request(stream: TcpStream) -> Result<Request, ServerError>  {
         .take_while(|line| line.is_ok() && !line.as_ref().unwrap().is_empty())
         .collect();
 
-    return if raw_request.is_err() {
-        Err(ServerError::IncompleteRequest)
+    
+    if raw_request.is_err() {
+        return Err(ServerError::IncompleteRequest)
     } else {
-        let mut raw_data = raw_request.unwrap();
+        let mut raw_data = raw_request.unwrap();        
         if raw_data.len() < 1 {
             return Err(ServerError::IncompleteRequest);
         } else {
             let _header = raw_data.split_off(1);
-            return match identify(&raw_data[0]) {
-                Ok((_method, _uri)) => {
-                    Ok(Request {
-                        method: _method,
-                        uri: _uri,
-                        header: _header,
-                    })},
-                Err(e) => { Err(e)},
-            }
-        }
+            return identify(&raw_data[0])
+                .map(|(_method, _uri)| Request{ method: _method, uri: _uri, header: _header});            
+        };
     };
 }
 
