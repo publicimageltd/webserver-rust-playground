@@ -128,10 +128,10 @@ fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
     }
 } 
 
-fn join_response(response: &Response) -> String {   
+fn join_response(response: &Response) -> String {
     return format!("{} {} {}\r\n{}\r\n{}\r\n",
         response.protocol, response.status_code, response.reason,
-        response.headers.join("\r\n"),
+        response.headers.join("\r\n") + &format!("Content-Length: {}", response.body.len()),
         response.body);
 }
 
