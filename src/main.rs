@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{
-    error::Error, io::{prelude::*, BufReader}, net::{SocketAddr, TcpListener, TcpStream}};
+    borrow::BorrowMut, error::Error, io::{prelude::*, BufReader, BufWriter}, net::{SocketAddr, TcpListener, TcpStream}};
 
 use chrono::{DateTime, Local};
 use regex::Regex;
@@ -35,11 +35,21 @@ enum HTTPMethod {
     UNKNOWN,
 }
 
+
 #[derive(Debug)]
 struct Request {
     method: HTTPMethod,
     uri: URI,
     header: Vec<String>,
+}
+
+#[derive(Debug)]
+struct Response {
+    protocol: String,
+    status_code: String,
+    reason: String,
+    headers: Vec<String>,
+    body: String   
 }
 
 /// Get a timestamp
@@ -66,8 +76,8 @@ macro_rules! info {
 
 /// Read the stream and parse it as a request.
 ///
-fn get_request(stream: TcpStream) -> Result<Request, ServerError>  {
-    let reader = BufReader::new(&stream);    
+fn get_request(stream: &TcpStream) -> Result<Request, ServerError>  {
+    let reader = BufReader::new(stream);    
 
     let raw_request : Result<Vec<String>, _> = reader.lines()
         .take_while(|line| line.is_ok() && !line.as_ref().unwrap().is_empty())
@@ -118,6 +128,20 @@ fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
     }
 } 
 
+fn join_response(response: &Response) -> String {   
+    return format!("{} {} {}\r\n{}\r\n{}\r\n",
+        response.protocol, response.status_code, response.reason,
+        response.headers.join("\r\n"),
+        response.body);
+}
+
+fn send_response(response: &Response, mut stream: TcpStream) -> Result<(), ServerError> {
+    match stream.write_all(join_response(response).as_bytes()) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(ServerError::Unknown),
+    }
+}
+
 /// Listen and reply
 fn main() -> Result<(), Box<dyn Error>> { 
 
@@ -128,11 +152,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Open connection
     let listener = TcpListener::bind(&backend)?;
 
-    // Read the incoming data
+    // Read the incoming data and respond
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                info!("{:#?}", get_request(stream));
+                info!("{:#?}", get_request(&stream));
+
+                let response = Response {
+                    protocol: "HTTP/1.1".to_string(),
+                    status_code: "200".to_string(),
+                    reason: "OK".to_string(),
+                    headers: vec!["".to_string()],
+                    body: "".to_string(),
+                };
+
+                // TODO Somehow make "?" possible ("From"-Trait?)
+                let _ = send_response(&response, stream);                
             },
             Err(e) => {
                 info!("Something went wrong: {e:?}");
