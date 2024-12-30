@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{
-    borrow::BorrowMut, error::Error, io::{prelude::*, BufReader, BufWriter}, net::{SocketAddr, TcpListener, TcpStream}};
+    borrow::BorrowMut, error::Error, fs, io::{prelude::*, BufReader, BufWriter}, net::{SocketAddr, TcpListener, TcpStream}};
 
 use chrono::{DateTime, Local};
 use regex::Regex;
@@ -129,9 +129,10 @@ fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
 } 
 
 fn join_response(response: &Response) -> String {
-    return format!("{} {} {}\r\n{}\r\n{}\r\n",
+    let content_header = format!("Content-Length: {}\r\n", response.body.len());
+    return format!("{} {} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
         response.protocol, response.status_code, response.reason,
-        response.headers.join("\r\n") + &format!("Content-Length: {}", response.body.len()),
+        response.headers.join("\r\n"),
         response.body);
 }
 
@@ -158,12 +159,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(stream) => {
                 info!("{:#?}", get_request(&stream));
 
+                let file = fs::read_to_string("hello.html").unwrap_or("<p>FEHLER BEIM EINLESEN DER DATEI!</p>".to_string());
+                
                 let response = Response {
                     protocol: "HTTP/1.1".to_string(),
                     status_code: "200".to_string(),
                     reason: "OK".to_string(),
                     headers: vec!["".to_string()],
-                    body: "".to_string(),
+                    body: file,
                 };
 
                 // TODO Somehow make "?" possible ("From"-Trait?)
