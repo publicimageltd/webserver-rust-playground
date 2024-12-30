@@ -73,19 +73,22 @@ fn get_request(stream: TcpStream) -> Result<Request, ServerError>  {
         .take_while(|line| line.is_ok() && !line.as_ref().unwrap().is_empty())
         .collect();
 
-    
-    if raw_request.is_err() {
-        return Err(ServerError::IncompleteRequest)
+    return if raw_request.is_err() {
+         Err(ServerError::IncompleteRequest)
     } else {
-        let mut raw_data = raw_request.unwrap();        
-        if raw_data.len() < 1 {
-            return Err(ServerError::IncompleteRequest);
-        } else {
-            let _header = raw_data.split_off(1);
-            return identify(&raw_data[0])
-                .map(|(_method, _uri)| Request{ method: _method, uri: _uri, header: _header});            
-        };
+        to_request(raw_request.unwrap().as_mut())
     };
+}
+
+/// Transform raw header data to a typed request
+///
+fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, ServerError> {
+    if raw_headers.len() < 1 {
+        return Err(ServerError::IncompleteRequest);
+    } else {
+        return identify(&raw_headers[0])
+            .map(|(_method, _uri)| Request{ method: _method, uri: _uri, header: raw_headers.split_off(1)});                    
+    }
 }
 
 /// Find out the request type
