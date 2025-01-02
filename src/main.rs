@@ -52,6 +52,27 @@ struct Response {
     body: String   
 }
 
+impl Response {
+
+    // Internal "private" method
+    fn join(&self) -> String {
+        let response = self;
+        let content_header = format!("Content-Length: {}\r\n", response.body.len());
+        return format!("{} {} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
+            response.protocol, response.status_code, response.reason,
+            response.headers.join("\r\n"),
+            response.body);
+    }
+
+    // Public method
+    fn send(&self, mut stream: TcpStream) -> Result<(), ServerError> {
+        match stream.write_all(self.join().as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(ServerError::Unknown),
+        }
+    }
+}
+
 /// Get a timestamp
 ///
 fn timestamp() -> String {
@@ -128,21 +149,6 @@ fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
     }
 } 
 
-fn join_response(response: &Response) -> String {
-    let content_header = format!("Content-Length: {}\r\n", response.body.len());
-    return format!("{} {} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
-        response.protocol, response.status_code, response.reason,
-        response.headers.join("\r\n"),
-        response.body);
-}
-
-fn send_response(response: &Response, mut stream: TcpStream) -> Result<(), ServerError> {
-    match stream.write_all(join_response(response).as_bytes()) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(ServerError::Unknown),
-    }
-}
-
 /// Listen and reply
 fn main() -> Result<(), Box<dyn Error>> { 
 
@@ -170,7 +176,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 };
 
                 // TODO Somehow make "?" possible ("From"-Trait?)
-                let _ = send_response(&response, stream);                
+                let _ = response.send(stream);
             },
             Err(e) => {
                 info!("Something went wrong: {e:?}");
