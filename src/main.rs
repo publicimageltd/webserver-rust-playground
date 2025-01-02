@@ -42,11 +42,31 @@ struct Request {
     header: Vec<String>,
 }
 
+/// HTTP Response Status Codes
+#[derive(Debug,Copy,Clone)]
+enum StatusCode {
+    OK = 200,
+    BadRequest = 400,
+    NotFound = 404,
+    URITooLong = 414,
+}
+impl fmt::Display for StatusCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let reason: String = match *self {
+            StatusCode::OK => "OK",
+            StatusCode::BadRequest => "Bad Request",
+            StatusCode::NotFound => "Not Found",
+            StatusCode::URITooLong => "URI Too Long",
+            _ => "",
+        }.to_string();
+        write!(f, "{} {}", *self as u16, reason)
+    }
+}
+
 #[derive(Debug)]
 struct Response {
     protocol: String,
-    status_code: String,
-    reason: String,
+    status_code: StatusCode,
     headers: Vec<String>,
     body: String   
 }
@@ -57,11 +77,11 @@ impl Response {
     fn join(&self) -> String {
         let response = self;
         let content_header = format!("Content-Length: {}\r\n", response.body.len());
-        return format!("{} {} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
-            response.protocol, response.status_code, response.reason,
+        return format!("{} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
+            response.protocol, response.status_code,
             response.headers.join("\r\n"),
             response.body);
-    }
+    }  
 
     // Public method
     fn send(&self, mut stream: TcpStream) -> Result<(), ServerError> {
@@ -70,6 +90,10 @@ impl Response {
             Err(_) => Err(ServerError::Unknown),
         }
     }
+}
+
+struct Server {
+    
 }
 
 /// Get a timestamp
@@ -168,8 +192,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 
                 let response = Response {
                     protocol: "HTTP/1.1".to_string(),
-                    status_code: "200".to_string(),
-                    reason: "OK".to_string(),
+                    status_code: StatusCode::OK,
                     headers: vec!["".to_string()],
                     body: file,
                 };
