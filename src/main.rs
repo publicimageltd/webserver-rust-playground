@@ -13,7 +13,7 @@ type URI = String;
 
 #[derive(Debug)]
 enum ServerError {
-    IncompleteRequest,
+    BadRequest,
     InvalidHeader,
     Unknown,
 }
@@ -22,15 +22,14 @@ impl fmt::Display for ServerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             ServerError::Unknown => write!(f, "Something went wrong"),
-            ServerError::IncompleteRequest => write!(f, "Incomplete request"),
-            ServerError::InvalidHeader => write!(f, "Could not parse header line(s)"),
+            ServerError::BadRequest => write!(f, "Incomplete request"),
+            ServerError::InvalidHeader => write!(f, "Could not parse request header line(s)"),
         }
     }
 }
 
 #[derive(Debug)]
 enum HTTPMethod {
-    POST,
     GET,
     UNKNOWN,
 }
@@ -105,7 +104,7 @@ fn get_request(stream: &TcpStream) -> Result<Request, ServerError>  {
         .collect();
 
     return if raw_request.is_err() {
-         Err(ServerError::IncompleteRequest)
+         Err(ServerError::BadRequest)
     } else {
         to_request(raw_request.unwrap().as_mut())
     };
@@ -115,15 +114,16 @@ fn get_request(stream: &TcpStream) -> Result<Request, ServerError>  {
 ///
 fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, ServerError> {
     if raw_headers.len() < 1 {
-        return Err(ServerError::IncompleteRequest);
+        return Err(ServerError::BadRequest);
     } else {
         return identify(&raw_headers[0])
-            .map(|(_method, _uri)| Request{ method: _method, uri: _uri, header: raw_headers.split_off(1)});                    
+            .map(|(_method, _uri)| Request{ method: _method, uri: _uri, header: raw_headers.split_off(1)});
     }
 }
 
 /// Find out the request type
 fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
+    // TODO Also scan URL parameters (?foo=x&bar=z)
     let re = Regex::new(r"(?<method>[A-Z]+) (?<uri>/\S*) (?<protocol>\S+)").unwrap();
     match re.captures(first_line) {
         None => Err(ServerError::InvalidHeader),
@@ -137,7 +137,6 @@ fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
                         
             let method  = groups.name("method").unwrap().as_str();
             let method = match method {
-                "POST" => HTTPMethod::POST,
                 "GET"  => HTTPMethod::GET,
                 _ => HTTPMethod::UNKNOWN,
             };
