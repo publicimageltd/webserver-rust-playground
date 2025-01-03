@@ -1,4 +1,5 @@
 use core::fmt;
+#![allow(dead_code)]
 use std::{
     borrow::BorrowMut, error::Error, fs, io::{prelude::*, BufReader, BufWriter}, net::{SocketAddr, TcpListener, TcpStream}};
 
