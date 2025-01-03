@@ -1,17 +1,28 @@
-use core::fmt;
 #![allow(dead_code)]
-use std::{
-    borrow::BorrowMut, error::Error, fs, io::{prelude::*, BufReader, BufWriter}, net::{SocketAddr, TcpListener, TcpStream}};
 
-use chrono::{DateTime, Local};
+use std::{
+    fmt,
+    error::Error,
+    fs,
+    io::{BufReader, BufRead, Write},
+    net::{SocketAddr, TcpListener, TcpStream}
+};
+
 use regex::Regex;
 
-// TODO Continue tutorial
-// https://doc.rust-lang.org/book/ch20-01-single-threaded.html
+// It seems like we need to import the 'private' helper function
+// timestamp() so that it shares the macro's scope. This is weird, and
+// it shows that Rust would profit from a way to pass variadic
+// arguments to normal functions. There is no other reason to use a
+// macro here.
+mod log;
+use log::timestamp;
 
+mod status;
 
 type URI = String;
 
+// TODO ServerError should be a reply / response
 #[derive(Debug)]
 enum ServerError {
     BadRequest,
@@ -43,31 +54,11 @@ struct Request {
     header: Vec<String>,
 }
 
-/// HTTP Response Status Codes
-#[derive(Debug,Copy,Clone)]
-enum StatusCode {
-    OK = 200,
-    BadRequest = 400,
-    NotFound = 404,
-    URITooLong = 414,
-}
-impl fmt::Display for StatusCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let reason: String = match *self {
-            StatusCode::OK => "OK",
-            StatusCode::BadRequest => "Bad Request",
-            StatusCode::NotFound => "Not Found",
-            StatusCode::URITooLong => "URI Too Long",
-            _ => "",
-        }.to_string();
-        write!(f, "{} {}", *self as u16, reason)
-    }
-}
 
 #[derive(Debug)]
 struct Response {
     protocol: String,
-    status_code: StatusCode,
+    status_code: status::StatusCode,
     headers: Vec<String>,
     body: String   
 }
@@ -93,31 +84,6 @@ impl Response {
     }
 }
 
-struct Server {
-    
-}
-
-/// Get a timestamp
-///
-fn timestamp() -> String {
-    let time: DateTime<Local> = Local::now();
-    return format!("{}", time.format("%Y-%m-%d %H:%M:%S%.6f"));
-}
-
-
-// https://danielkeep.github.io/practical-intro-to-macros.html
-// https://veykril.github.io/tlborm/decl-macros/macros-methodical.html
-
-#[macro_export]
-macro_rules! info {
-    // Match: a repeating sequence $();
-    // matching one or more times, separated by a comma: $(),*
-    // which repeats an expression, captured as a variable "arg":
-    // ($arg:expr)
-    // -> ( $($arg:expr),+ )
-    
-    ( $($arg:expr),+  ) => { println!("[{}] {}", timestamp(), format_args!($($arg),+) ) }
-}
 
 /// Read the stream and parse it as a request.
 ///
@@ -193,7 +159,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 
                 let response = Response {
                     protocol: "HTTP/1.1".to_string(),
-                    status_code: StatusCode::OK,
+                    status_code: status::StatusCode::OK,
                     headers: vec!["".to_string()],
                     body: file,
                 };
