@@ -20,5 +20,5 @@ macro_rules! info {
     // ($arg:expr)
     // -> ( $($arg:expr),+ )
     
-    ( $($arg:expr),+  ) => { println!("[{}] {}", timestamp(), format_args!($($arg),+) ) }
+    ( $($arg:expr),+  ) => { println!("[{}] {}", crate::log::timestamp(), format_args!($($arg),+) ) }
 }

@@ -10,13 +10,7 @@ use std::{
 
 use regex::Regex;
 
-// It seems like we need to import the 'private' helper function
-// timestamp() so that it shares the macro's scope. This is weird, and
-// it shows that Rust would profit from a way to pass variadic
-// arguments to normal functions. There is no other reason to use a
-// macro here.
 mod log;
-use log::timestamp;
 
 mod status;
 
