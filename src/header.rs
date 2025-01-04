@@ -39,16 +39,43 @@ impl fmt::Display for Header {
     }
 }
 
+#[derive(Debug)]
 pub struct HeaderMap(HashMap<Header, String>);
 
 impl HeaderMap {
     pub fn insert<T: HeaderName,V: ToString>(&mut self, header: T, value: V) {
         self.0.insert(Header::from(header), value.to_string());
     }
-    pub fn insert_custom<T: ToString>(&mut self, name: String, value: String) {
-        self.0.insert( Header::from_custom(name), value.to_string());
+    /// Join the k v pairs, separated by space, with a seperator
+    pub fn join(&self, sep: &str) -> String {
+        Self::_join(sep, self.0.iter())
     }
-    
+    /// Join two maps using a separator
+    pub fn join_using(sep: &str, m1: &HashMap<Header,String>, m2: &HashMap<Header,String>) -> String {
+        let iter = m1.iter().chain(m2);
+        Self::_join(sep, iter.into_iter())
+    }
+
+    // TODO This can be generalized
+    /// Join a header hashmap using the iterator passed
+    fn _join<'a>(sep: &str, iter: impl Iterator<Item = (&'a Header, &'a String)>) -> String {
+        let mut res = String::new();
+        let mut peekable = iter.peekable();
+        while let Some((k,v)) = peekable.next() {
+            res.push_str(&format!("{k} {v}"));
+            if peekable.peek().is_some() {
+                res.push_str(sep);                
+            }
+        }
+        res
+    }
+
+    pub fn new() -> HeaderMap {
+        HeaderMap(HashMap::new())
+    }
+    pub fn get_map(&self) -> &HashMap<Header,String> {
+       &self.0
+    }
 }
 
 // Impl

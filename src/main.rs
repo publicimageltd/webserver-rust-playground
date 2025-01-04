@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
 use std::{
-    collections::{HashMap, HashSet}, error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
+    error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
 };
 
-use header::Header;
+use header::{Header, PredefinedName, HeaderMap};
 use regex::Regex;
 
 mod log;
@@ -42,7 +42,7 @@ enum HTTPMethod {
 struct Request {
     method: HTTPMethod,
     uri: URI,
-    headers: HashMap<Header, String>,
+    headers: HeaderMap,
 }
 
 
@@ -50,7 +50,7 @@ struct Request {
 struct Response {
     protocol: String,
     status_code: status::StatusCode,
-    headers: HashMap<Header, String>,
+    headers: HeaderMap,
     body: String   
 }
 
@@ -58,16 +58,16 @@ impl Response {
 
     // Internal "private" method
     fn join(&self) -> String {
-        let response = self;
 
-        let content_header = header::predefined(header::Predefined::ContentLength, response.body.len());
-        response.headers.insert(content_header);
+        // TODO Move this into a filter fn
+        let val = self.body.len();
+        let mut additional_headers = HeaderMap::new();
+        additional_headers.insert(PredefinedName::ContentLength, val);
         
-        let content_header = format!("Content-Length: {}\r\n", response.body.len());
-        return format!("{} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
-            response.protocol, response.status_code,
-            response.headers.join("\r\n"),
-            response.body);
+        return format!("{} {}\r\n{}\r\n{}\r\n",
+            self.protocol, self.status_code,
+            HeaderMap::join_using("\r\n", self.headers.get_map(), additional_headers.get_map()),
+            self.body);
     }  
 
     // Public method
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let response = Response {
                     protocol: "HTTP/1.1".to_string(),
                     status_code: status::StatusCode::OK,
-                    headers: vec!["".to_string()],
+                    headers: HeaderMap::new(),
                     body: file,
                 };
 
