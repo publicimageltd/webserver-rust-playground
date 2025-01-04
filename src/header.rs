@@ -1,14 +1,37 @@
 ///! Define a header type and some standard headers
 ///!
+///! For some obscure reasons, a "Header" is not just a tuple of
+///! Strings, as one would expect. The author of this file has
+///! decided to distinguish between predefined standard headers,
+///! and custom headers with an unknown name. Thus, a header is:
+///!
+///! ```
+///! let header = (HeaderName, String);
+///! ```
+///!
+///! `HeaderName` is actually a trait which is implemented for
+///! the String type and the enum with standard headers,
+///! `PredefinedName`. There are some convenience functions to
+///! create and inspect `HeaderName`s.
+///! 
+///! Further, to collect a list of headers, this module provides a
+///! `HeaderMap`.
+///! 
+///! This whole thing is not really elegant nor useful. The original
+///! idea was to somehow parse known headers, but in retrospect,
+///! this is not useful. A better approach would be to
+///! collect all header lines in one string and then actively search
+///! for a certain header name via regex. After all, the server is
+///! only /responding/ to certain headers, so there is no need to
+///! preemptively encode all headers. So we would need no map,
+///! and no special types, just a string buffer.
 
 use std::{collections::HashMap, fmt};
 
 use crate::AppError;
 use crate::failed;
 
-// Public API
-
-trait IntoHeaderName {
+pub trait IntoHeaderName {
     fn kind(&self) -> Kind;
 }
 
@@ -25,7 +48,7 @@ impl IntoHeaderName for PredefinedName {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HeaderName {
-    kind: Kind,
+    pub kind: Kind,
 }
 
 impl HeaderName {
@@ -41,7 +64,7 @@ impl HeaderName {
         !self.is_custom()
     }
     
-    pub fn from<T: IntoHeaderName>(header: T) -> Self {
+    fn from<T: IntoHeaderName>(header: T) -> Self {
         HeaderName { kind: header.kind(), }
     }
     /// Parse the given header line into a header tuple 
@@ -49,8 +72,8 @@ impl HeaderName {
         match header_line.split_once(":") {
             Some((name, value)) => {
                 match PredefinedName::find(name) {
-                    Some(predefined_name) => Ok((predefined_name, value.to_string())),
-                    None => Ok((HeaderName::from(name.to_string()), value.to_string()))
+                    Some(predefined_name) => Ok((predefined_name, value.trim().to_string())),
+                    None => Ok((HeaderName::from(name.to_string()), value.trim().to_string()))
                 }
             }
             None => Err(failed!("No  colon found; could not split"))
@@ -109,7 +132,7 @@ impl HeaderMap {
 
 // Impl
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Kind {
+pub enum Kind {
     Standard(PredefinedName),
     Custom(String),
 }
@@ -129,6 +152,23 @@ impl fmt::Display for Kind {
     }
 }
 
+///! Ease the definition of standard headers.
+///!
+///! ```
+///! define_standardheaders! {
+///!     (ContentLength, "content-length"),
+///!     (Referer, "referer"),    
+///! }
+///! ```
+///! 
+///! For each tuple, the first value becomes a valid value for the
+///! enum `PredefinedName`, and the second one is a string
+///! representation which is used both for printing and
+///! parsing header names.
+///! 
+///! For parsing a raw text into a HeaderName object and its
+///! associated value, use `PredefinedName::find`.
+///! 
 macro_rules! define_standardheaders {
     ( $( ($name:ident, $val:literal), )+   
     ) =>
@@ -139,7 +179,10 @@ macro_rules! define_standardheaders {
 
         impl PredefinedName {
             pub fn find(s: &str) -> Option<HeaderName> {
-                match s {
+                let mut needle: String = String::from(s);
+                needle.make_ascii_lowercase();
+//                println!("Comparing against {}", &needle);
+                match needle.as_ref() {
                     $( $val => Some(HeaderName::from(PredefinedName::$name)), )+
                     _ => None
                 }

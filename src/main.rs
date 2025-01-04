@@ -5,6 +5,12 @@
 ///!
 ///! We limit ourselves to HTTP/1.1 (see
 ///! https://datatracker.ietf.org/doc/html/rfc2616#section-4.1)
+///!
+///! TODO Write a response builder
+///! MAYBE Change header.rs to simple string buffer handling (see doc comment)
+///! TODO Extend AppError to provide an HTTP response
+///! TODO When reading the stream, already check status line (peek)
+
 
 use std::{
     collections::HashMap, error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
