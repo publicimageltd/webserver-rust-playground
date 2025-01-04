@@ -8,10 +8,20 @@ use std::{collections::HashMap, fmt};
 
 // Public API
 
-pub trait HeaderName {
-    fn to_string(&self) -> String;
+trait HeaderName {
+    fn kind(&self) -> Kind;
 }
 
+impl HeaderName for String {
+    fn kind(&self) -> Kind {
+        Kind::Custom(self.to_string())
+    }
+}
+impl HeaderName for PredefinedName {
+    fn kind(&self) -> Kind {
+        Kind::Standard(*self)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Header {
@@ -19,19 +29,21 @@ pub struct Header {
 }
 
 impl Header {
-    fn from_predefined(header: PredefinedName) -> Self {
-        Header { kind: Kind::Standard(header), }
+    pub fn from<T: HeaderName>(header: T) -> Self {
+        Header { kind: header.kind(), }
     }
-    fn from_custom(name: String) -> Self {
-        Header { kind: Kind::Custom(name), }
+}
+impl fmt::Display for Header {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.kind)
     }
 }
 
 pub struct HeaderMap(HashMap<Header, String>);
 
 impl HeaderMap {
-    pub fn insert_predefined<T: ToString>(&mut self, header: PredefinedName, value: T) {
-        self.0.insert( Header::from_predefined(header), value.to_string());
+    pub fn insert<T: HeaderName,V: ToString>(&mut self, header: T, value: V) {
+        self.0.insert(Header::from(header), value.to_string());
     }
     pub fn insert_custom<T: ToString>(&mut self, name: String, value: String) {
         self.0.insert( Header::from_custom(name), value.to_string());
@@ -58,7 +70,7 @@ impl fmt::Display for Kind {
 macro_rules! define_standardheaders {
     ( $( ($name:ident, $val:literal), )+   
     ) =>
-    { #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum PredefinedName {            
            $( $name, )+
         }
