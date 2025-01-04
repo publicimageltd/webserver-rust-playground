@@ -4,68 +4,87 @@
 use std::{collections::HashMap, fmt};
 
 use crate::AppError;
+use crate::failed;
 
 // Public API
 
-trait HeaderName {
+trait IntoHeaderName {
     fn kind(&self) -> Kind;
 }
 
-impl HeaderName for String {
+impl IntoHeaderName for String {
     fn kind(&self) -> Kind {
         Kind::Custom(self.to_string())
     }
 }
-impl HeaderName for PredefinedName {
+impl IntoHeaderName for PredefinedName {
     fn kind(&self) -> Kind {
         Kind::Standard(*self)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Header {
+pub struct HeaderName {
     kind: Kind,
 }
 
-impl Header {
-    pub fn from<T: HeaderName>(header: T) -> Self {
-        Header { kind: header.kind(), }
-    }
-    /// Parse the given header line into a Header object
-    pub fn parse(header_line: &str) -> Result<Header, AppError> {
-        if header_line.is_empty() {
-            Err(new_err)
+impl HeaderName {
+    
+    pub fn is_custom(&self) -> bool {
+        match self.kind {
+            Kind::Standard(_) => false,
+            Kind::Custom(_) => true,
         }
     }
+
+    pub fn is_standard(&self) -> bool {
+        !self.is_custom()
+    }
+    
+    pub fn from<T: IntoHeaderName>(header: T) -> Self {
+        HeaderName { kind: header.kind(), }
+    }
+    /// Parse the given header line into a header tuple 
+    pub fn parse(header_line: &str) -> Result<(HeaderName, String), AppError> {
+        match header_line.split_once(":") {
+            Some((name, value)) => {
+                match PredefinedName::find(name) {
+                    Some(predefined_name) => Ok((predefined_name, value.to_string())),
+                    None => Ok((HeaderName::from(name.to_string()), value.to_string()))
+                }
+            }
+            None => Err(failed!("No  colon found; could not split"))
+        }        
+    }
 }
-impl fmt::Display for Header {
+impl fmt::Display for HeaderName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.kind)
     }
 }
 
 #[derive(Debug)]
-pub struct HeaderMap(HashMap<Header, String>);
+pub struct HeaderMap(HashMap<HeaderName, String>);
 
 impl HeaderMap {
     /// Add a header. A `HeaderName` can be either a string or a
     /// `header::PredefinedName`. 
-    pub fn insert<T: HeaderName,V: ToString>(&mut self, header: T, value: V) {
-        self.0.insert(Header::from(header), value.to_string());
+    pub fn insert<T: IntoHeaderName,V: ToString>(&mut self, header: T, value: V) {
+        self.0.insert(HeaderName::from(header), value.to_string());
     }
     /// Join the k v pairs, separated by space, with a seperator
     pub fn join(&self, sep: &str) -> String {
         Self::_join(sep, self.0.iter())
     }
     /// Join two maps using a separator
-    pub fn join_using(sep: &str, m1: &HashMap<Header,String>, m2: &HashMap<Header,String>) -> String {
+    pub fn join_using(sep: &str, m1: &HashMap<HeaderName,String>, m2: &HashMap<HeaderName,String>) -> String {
         let iter = m1.iter().chain(m2);
         Self::_join(sep, iter.into_iter())
     }
 
     // TODO This can be generalized
     /// Join a header hashmap using the iterator passed
-    fn _join<'a>(sep: &str, iter: impl Iterator<Item = (&'a Header, &'a String)>) -> String {
+    fn _join<'a>(sep: &str, iter: impl Iterator<Item = (&'a HeaderName, &'a String)>) -> String {
         let mut res = String::new();
         let mut peekable = iter.peekable();
         while let Some((k,v)) = peekable.next() {
@@ -80,8 +99,11 @@ impl HeaderMap {
     pub fn new() -> HeaderMap {
         HeaderMap(HashMap::new())
     }
-    pub fn get_map(&self) -> &HashMap<Header,String> {
+    pub fn get_map(&self) -> &HashMap<HeaderName,String> {
        &self.0
+    }
+    pub fn from_map(map: HashMap<HeaderName,String>) -> Self {
+        HeaderMap(map)
     }
 }
 
@@ -90,6 +112,12 @@ impl HeaderMap {
 enum Kind {
     Standard(PredefinedName),
     Custom(String),
+}
+
+impl Kind {
+    fn test() {
+        ()
+    }
 }
 
 impl fmt::Display for Kind {
@@ -107,6 +135,15 @@ macro_rules! define_standardheaders {
     { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum PredefinedName {            
            $( $name, )+
+        }
+
+        impl PredefinedName {
+            pub fn find(s: &str) -> Option<HeaderName> {
+                match s {
+                    $( $val => Some(HeaderName::from(PredefinedName::$name)), )+
+                    _ => None
+                }
+            }
         }
         
       impl fmt::Display for PredefinedName {

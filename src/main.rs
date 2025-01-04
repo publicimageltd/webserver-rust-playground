@@ -7,10 +7,10 @@
 ///! https://datatracker.ietf.org/doc/html/rfc2616#section-4.1)
 
 use std::{
-    error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
+    collections::HashMap, error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
 };
 
-use header::{Header, PredefinedName, HeaderMap};
+use header::{HeaderName, PredefinedName, HeaderMap};
 use regex::Regex;
 
 mod log;
@@ -89,8 +89,18 @@ fn get_request(stream: &TcpStream) -> Result<Request, AppError>  {
     };
 }
 
+fn parse_header_lines(header_lines : &Vec<String>) -> Result<HeaderMap, AppError> {
+
+    let map  = header_lines
+        .iter()
+        .map(|s| HeaderName::parse(s))
+        .collect::<Result<HashMap<HeaderName, String>, AppError>>()
+        .map(HeaderMap::from_map)?;
+
+    Ok(map)
+}
+
 /// Transform raw header data to a typed request
-///
 fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, AppError> {
     if raw_headers.len() < 1 {
         return Err(failed!("Empty request head"));
@@ -100,8 +110,7 @@ fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, AppError> {
                    Request {
                        method: _method,
                        uri: _uri,
-                       // TODO Implement parsing
-                       headers: raw_headers.split_off(1)
+                       headers: parse_header_lines(&raw_headers.split_off(1)).unwrap()
                    });
     }
 }
@@ -151,7 +160,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                info!("{:#?}", get_request(&stream));
+                info!("{:?}", get_request(&stream));
 
                 let file = fs::read_to_string("hello.html").unwrap_or("<p>FEHLER BEIM EINLESEN DER DATEI!</p>".to_string());
                 
