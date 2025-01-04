@@ -1,28 +1,48 @@
 ///! Define a header type and some standard headers
 ///!
-///! To get a header, use `header::predefined()` or `header::custom`
+///! To add a header, use a HeaderMap and its functions
+///! `insert_predefined` and `insert_custom`.
 ///!
 
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 // Public API
+
+pub trait HeaderName {
+    fn to_string(&self) -> String;
+}
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Header {
     kind: Kind,
 }
 
-pub fn predefined(header: Predefined) -> Header {
-    Header { kind: Kind::Standard(header), }
+impl Header {
+    fn from_predefined(header: PredefinedName) -> Self {
+        Header { kind: Kind::Standard(header), }
+    }
+    fn from_custom(name: String) -> Self {
+        Header { kind: Kind::Custom(name), }
+    }
 }
 
-pub fn custom(s: String) -> Header {
-    Header { kind: Kind::Custom(s), }
+pub struct HeaderMap(HashMap<Header, String>);
+
+impl HeaderMap {
+    pub fn insert_predefined<T: ToString>(&mut self, header: PredefinedName, value: T) {
+        self.0.insert( Header::from_predefined(header), value.to_string());
+    }
+    pub fn insert_custom<T: ToString>(&mut self, name: String, value: String) {
+        self.0.insert( Header::from_custom(name), value.to_string());
+    }
+    
 }
 
 // Impl
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Kind {
-    Standard(Predefined),
+    Standard(PredefinedName),
     Custom(String),
 }
 
@@ -39,14 +59,14 @@ macro_rules! define_standardheaders {
     ( $( ($name:ident, $val:literal), )+   
     ) =>
     { #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-        pub enum Predefined {            
+        pub enum PredefinedName {            
            $( $name, )+
         }
         
-      impl fmt::Display for Predefined {
+      impl fmt::Display for PredefinedName {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
           match *self {
-             $( Predefined::$name  => write!(f, $val), )+
+             $( PredefinedName::$name  => write!(f, $val), )+
           }
         }
       }
@@ -68,7 +88,7 @@ mod test {
 
     #[test]
     fn header_macro_as_string() {
-        assert_eq!(format!("{}", Predefined::ContentLength),
+        assert_eq!(format!("{}", PredefinedName::ContentLength),
             "content-length")
     }
 }

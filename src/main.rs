@@ -1,13 +1,10 @@
 #![allow(dead_code)]
 
 use std::{
-    fmt,
-    error::Error,
-    fs,
-    io::{BufReader, BufRead, Write},
-    net::{SocketAddr, TcpListener, TcpStream}
+    collections::{HashMap, HashSet}, error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
 };
 
+use header::Header;
 use regex::Regex;
 
 mod log;
@@ -45,7 +42,7 @@ enum HTTPMethod {
 struct Request {
     method: HTTPMethod,
     uri: URI,
-    header: Vec<String>,
+    headers: HashMap<Header, String>,
 }
 
 
@@ -53,7 +50,7 @@ struct Request {
 struct Response {
     protocol: String,
     status_code: status::StatusCode,
-    headers: Vec<String>,
+    headers: HashMap<Header, String>,
     body: String   
 }
 
@@ -62,6 +59,10 @@ impl Response {
     // Internal "private" method
     fn join(&self) -> String {
         let response = self;
+
+        let content_header = header::predefined(header::Predefined::ContentLength, response.body.len());
+        response.headers.insert(content_header);
+        
         let content_header = format!("Content-Length: {}\r\n", response.body.len());
         return format!("{} {}\r\n{}\r\n{content_header}\r\n{}\r\n",
             response.protocol, response.status_code,
@@ -102,7 +103,7 @@ fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, ServerError> {
         return Err(ServerError::BadRequest);
     } else {
         return identify(&raw_headers[0])
-            .map(|(_method, _uri)| Request{ method: _method, uri: _uri, header: raw_headers.split_off(1)});
+            .map(|(_method, _uri)| Request{ method: _method, uri: _uri, headers: raw_headers.split_off(1)});
     }
 }
 
