@@ -1,5 +1,11 @@
 #![allow(dead_code)]
 
+///!
+///! "Web Server"
+///!
+///! We limit ourselves to HTTP/1.1 (see
+///! https://datatracker.ietf.org/doc/html/rfc2616#section-4.1)
+
 use std::{
     error::Error, fmt, fs, io::{BufRead, BufReader, Write}, net::{SocketAddr, TcpListener, TcpStream}
 };
@@ -8,28 +14,14 @@ use header::{Header, PredefinedName, HeaderMap};
 use regex::Regex;
 
 mod log;
+mod error;
+use error::AppError;
 mod status;
 mod header;
 
 type URI = String;
 
 // TODO ServerError should be a reply / response
-#[derive(Debug)]
-enum ServerError {
-    BadRequest,
-    InvalidHeader,
-    Unknown,
-}
-
-impl fmt::Display for ServerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            ServerError::Unknown => write!(f, "Something went wrong"),
-            ServerError::BadRequest => write!(f, "Incomplete request"),
-            ServerError::InvalidHeader => write!(f, "Could not parse request header line(s)"),
-        }
-    }
-}
 
 #[derive(Debug)]
 enum HTTPMethod {
@@ -71,10 +63,10 @@ impl Response {
     }  
 
     // Public method
-    fn send(&self, mut stream: TcpStream) -> Result<(), ServerError> {
+    fn send(&self, mut stream: TcpStream) -> Result<(), AppError> {
         match stream.write_all(self.join().as_bytes()) {
             Ok(_) => Ok(()),
-            Err(_) => Err(ServerError::Unknown),
+            Err(_) => Err(failed!("Error while sending the request")),
         }
     }
 }
@@ -82,43 +74,54 @@ impl Response {
 
 /// Read the stream and parse it as a request.
 ///
-fn get_request(stream: &TcpStream) -> Result<Request, ServerError>  {
+fn get_request(stream: &TcpStream) -> Result<Request, AppError>  {
     let reader = BufReader::new(stream);    
 
-    let raw_request : Result<Vec<String>, _> = reader.lines()
+    // TODO This actually reads only the headers, not the body!
+    let raw_head : Result<Vec<String>, _> = reader.lines()
         .take_while(|line| line.is_ok() && !line.as_ref().unwrap().is_empty())
         .collect();
 
-    return if raw_request.is_err() {
-         Err(ServerError::BadRequest)
+    return if raw_head.is_err() {
+        Err(failed!("Could not parse raw request / header lines"))
     } else {
-        to_request(raw_request.unwrap().as_mut())
+        to_request(raw_head.unwrap().as_mut())
     };
 }
 
 /// Transform raw header data to a typed request
 ///
-fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, ServerError> {
+fn to_request(raw_headers: &mut Vec<String>) -> Result<Request, AppError> {
     if raw_headers.len() < 1 {
-        return Err(ServerError::BadRequest);
+        return Err(failed!("Empty request head"));
     } else {
         return identify(&raw_headers[0])
-            .map(|(_method, _uri)| Request{ method: _method, uri: _uri, headers: raw_headers.split_off(1)});
+            .map(|(_method, _uri)|
+                   Request {
+                       method: _method,
+                       uri: _uri,
+                       // TODO Implement parsing
+                       headers: raw_headers.split_off(1)
+                   });
     }
 }
 
-/// Find out the request type
-fn identify(first_line: &str) -> Result<(HTTPMethod, String), ServerError> {
+/// Find out the request type by inspecting the start line of an HTTP request
+fn identify(start_line: &str) -> Result<(HTTPMethod, String), AppError> {
     // TODO Also scan URL parameters (?foo=x&bar=z)
+    //
+    // There are other possible values for the start line
+    // (https://developer.mozilla.org/en-US/docs/Web/HTTP/Messages#http_requests)
+    // We focus on the "Origin Form"
     let re = Regex::new(r"(?<method>[A-Z]+) (?<uri>/\S*) (?<protocol>\S+)").unwrap();
-    match re.captures(first_line) {
-        None => Err(ServerError::InvalidHeader),
+    match re.captures(start_line) {
+        None => Err(failed!("Start line did not match the HTTP request origin form")),
         Some(groups) => {
             
             if groups.name("method").is_none()
                 || groups.name("uri").is_none()
                 || groups.name("protocol").is_none()  {
-                    return Err(ServerError::InvalidHeader);
+                    return Err(failed!("In start line, one of 'method', 'uri' or 'protcol' is missing"));
                 };
                         
             let method  = groups.name("method").unwrap().as_str();

@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 /// Get a timestamp
 pub fn timestamp() -> String {
     let time: DateTime<Local> = Local::now();
-    return format!("{}", time.format("%Y-%m-%d %H:%M:%S%.6f"));
+    format!("{}", time.format("%Y-%m-%d %H:%M:%S%.6f"))
 }
 
 

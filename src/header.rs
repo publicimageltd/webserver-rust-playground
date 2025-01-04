@@ -1,10 +1,9 @@
 ///! Define a header type and some standard headers
 ///!
-///! To add a header, use a HeaderMap and its functions
-///! `insert_predefined` and `insert_custom`.
-///!
 
 use std::{collections::HashMap, fmt};
+
+use crate::AppError;
 
 // Public API
 
@@ -32,6 +31,12 @@ impl Header {
     pub fn from<T: HeaderName>(header: T) -> Self {
         Header { kind: header.kind(), }
     }
+    /// Parse the given header line into a Header object
+    pub fn parse(header_line: &str) -> Result<Header, AppError> {
+        if header_line.is_empty() {
+            Err(new_err)
+        }
+    }
 }
 impl fmt::Display for Header {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -43,6 +48,8 @@ impl fmt::Display for Header {
 pub struct HeaderMap(HashMap<Header, String>);
 
 impl HeaderMap {
+    /// Add a header. A `HeaderName` can be either a string or a
+    /// `header::PredefinedName`. 
     pub fn insert<T: HeaderName,V: ToString>(&mut self, header: T, value: V) {
         self.0.insert(Header::from(header), value.to_string());
     }
