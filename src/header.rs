@@ -24,10 +24,12 @@
 ///! for a certain header name via regex. After all, the server is
 ///! only /responding/ to certain headers, so there is no need to
 ///! preemptively encode all headers. So we would need no map,
-///! and no special types, just a string buffer.
+///! and no special types, just a string buffer. (Unless we switch to
+///! HTTP 2, that is. But that's another story.)
 
 use std::{collections::HashMap, fmt};
 
+use crate::info;
 use crate::AppError;
 use crate::failed;
 
@@ -111,9 +113,10 @@ impl HeaderMap {
         let mut res = String::new();
         let mut peekable = iter.peekable();
         while let Some((k,v)) = peekable.next() {
-            res.push_str(&format!("{k} {v}"));
+            let new_val = format!("{k}: {v}");
+            res.push_str(&new_val);
             if peekable.peek().is_some() {
-                res.push_str(sep);                
+                res.push_str(&sep);                
             }
         }
         res
@@ -202,6 +205,7 @@ macro_rules! define_standardheaders {
 
 define_standardheaders! {
     (ContentLength, "content-length"),
+    (Server, "server"),
     (Referer, "referer"),    
 }
 

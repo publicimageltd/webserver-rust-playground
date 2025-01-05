@@ -61,16 +61,25 @@ impl Response {
         let val = self.body.len();
         let mut additional_headers = HeaderMap::new();
         additional_headers.insert(PredefinedName::ContentLength, val);
-        
-        return format!("{} {}\r\n{}\r\n{}\r\n",
-            self.protocol, self.status_code,
-            HeaderMap::join_using("\r\n", self.headers.get_map(), additional_headers.get_map()),
-            self.body);
+        additional_headers.insert(PredefinedName::Server, "Goofer/ 0.0 Unix");
+
+        let crlf="\r\n";
+        let status_line = &format!("{} {}", self.protocol, self.status_code);
+        let headers = self.headers.get_map()
+            .iter()
+            .chain(additional_headers.get_map())
+            .map(|(headername, value)| format!("{headername}: {value}\r\n"))
+            .collect::<String>();
+
+        let body = &self.body;       
+        return format!("{status_line}{crlf}{headers}{crlf}{body}");
     }  
 
     // Public method
     fn send(&self, mut stream: TcpStream) -> Result<(), AppError> {
-        match stream.write_all(self.join().as_bytes()) {
+        let raw_response = self.join();
+        info!("Sending response {:?}", &raw_response);
+        match stream.write_all(raw_response.as_bytes()) {
             Ok(_) => Ok(()),
             Err(_) => Err(failed!("Error while sending the request")),
         }
